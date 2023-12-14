@@ -23,10 +23,8 @@ export default function Home() {
   const auth = getAuth();
   const [signInWithGoogle, user, loading, error] = useSignInWithGoogle(auth);
 
-  // Router for redirection
   const router = useRouter();
 
-  // Redirect to /stream when the user is signed in
   useEffect(() => {
     if (user) {
       const username = user.user.displayName || user.user.email;
@@ -46,7 +44,6 @@ export default function Home() {
     return <p>Loading...</p>;
   }
 
-  // The sign-in button is displayed if the user is not signed in
   return (
     <div className="App">
       <button onClick={() => signInWithGoogle()}>Sign In</button>
