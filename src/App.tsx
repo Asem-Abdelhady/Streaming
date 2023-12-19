@@ -1,14 +1,15 @@
-"use client";
-import { getAuth, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
 import { initializeApp } from "firebase/app";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Navigate } from "react-router-dom";
+import { Button, CircularProgress } from "@mui/material";
+import GoogleIcon from "@mui/icons-material/Google";
 
 interface Config {
   [key: string]: string;
 }
-export default function Home() {
+
+export default function App() {
   const firebaseConfig: Config = {
     apiKey: "AIzaSyAyOVuEMc0Sv5sGyD0uJAhDvVA6s_nIL-Y",
     authDomain: "streamthing-5e53a.firebaseapp.com",
@@ -23,15 +24,6 @@ export default function Home() {
   const auth = getAuth(app);
   const [signInWithGoogle, user, loading, error] = useSignInWithGoogle(auth);
 
-  const router = useRouter();
-
-  useEffect(() => {
-    if (user) {
-      const username = user.user.displayName || user.user.email;
-      router.push(`/stream?username=${encodeURIComponent(username!)}`);
-    }
-  }, [user, router]);
-
   if (error) {
     return (
       <div>
@@ -41,12 +33,21 @@ export default function Home() {
   }
 
   if (loading) {
-    return <p>Loading...</p>;
+    return <CircularProgress />;
+  }
+
+  if (user) {
+    const username = user.user.displayName || user.user.email;
+    return (
+      <Navigate to={`/stream?username=${encodeURIComponent(username!)}`} />
+    );
   }
 
   return (
     <div className="App">
-      <button onClick={() => signInWithGoogle()}>Sign In</button>
+      <Button onClick={() => signInWithGoogle()} startIcon={<GoogleIcon />}>
+        Sign in with Google
+      </Button>
     </div>
   );
 }
