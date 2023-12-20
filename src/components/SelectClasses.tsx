@@ -1,5 +1,6 @@
 import { Button, Checkbox, FormControlLabel, FormGroup } from "@mui/material";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 // TODO: Fetch these from BE
 const classes = [
@@ -91,6 +92,7 @@ interface CheckedItems {
 
 export default function SelectClasses() {
   const [checkedItems, setCheckedItems] = useState<CheckedItems>({});
+  const navigate = useNavigate();
 
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newCheckedItems: CheckedItems = classes.reduce(
@@ -111,6 +113,8 @@ export default function SelectClasses() {
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     console.log(Object.keys(checkedItems).filter((item) => checkedItems[item]));
+    // Here we send api request when we have the URL
+    navigate("/stream");
   };
 
   return (
