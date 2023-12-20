@@ -10,6 +10,8 @@ import {
 import Stream from "./components/Stream.tsx";
 import "./main.css";
 import SelectClasses from "./components/SelectClasses.tsx";
+import { ThemeProvider } from "@mui/material";
+import theme from "./theme/theme.tsx";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -22,6 +24,8 @@ const router = createBrowserRouter(
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ThemeProvider theme={theme}>
+      <RouterProvider router={router} />
+    </ThemeProvider>
   </React.StrictMode>
 );

@@ -1,4 +1,10 @@
-import { Button, Checkbox, FormControlLabel, FormGroup } from "@mui/material";
+import {
+  Button,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  styled,
+} from "@mui/material";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -118,8 +124,8 @@ export default function SelectClasses() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <FormGroup>
+    <FormContainer onSubmit={handleSubmit}>
+      <FormGroup sx={{ maxHeight: "60%" }}>
         <FormControlLabel
           control={<Checkbox onChange={handleSelectAll} />}
           label="Select All"
@@ -137,9 +143,23 @@ export default function SelectClasses() {
           />
         ))}
       </FormGroup>
-      <Button type="submit" variant="contained" color="primary">
+      <Button
+        type="submit"
+        variant="contained"
+        color="primary"
+        sx={{ width: "60%", alignSelf: "center" }}
+      >
         Submit
       </Button>
-    </form>
+    </FormContainer>
   );
 }
+
+const FormContainer = styled("form")`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  row-gap: 12px;
+  padding: 24px;
+`;

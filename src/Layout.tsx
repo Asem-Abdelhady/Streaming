@@ -49,7 +49,16 @@ export default function Layout() {
   }
 
   if (signInLoading) {
-    return <CircularProgress />;
+    return (
+      <Stack
+        direction={"column"}
+        gap={4}
+        sx={{ height: "100%", alignItems: "center", justifyContent: "center" }}
+      >
+        <Typography>Sigining you in...</Typography>
+        <CircularProgress />
+      </Stack>
+    );
   }
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -69,11 +78,11 @@ export default function Layout() {
   };
 
   return (
-    <Stack sx={{ maxHeight: "100%" }}>
+    <Stack sx={{ height: "100%" }}>
       <AppBar position="static" color="secondary">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            TODO: App name
+            AutoAds
           </Typography>
           {user ? (
             <div>
@@ -91,7 +100,7 @@ export default function Layout() {
                 id="menu-appbar"
                 anchorEl={anchorEl}
                 anchorOrigin={{
-                  vertical: "top",
+                  vertical: "bottom",
                   horizontal: "right",
                 }}
                 keepMounted
@@ -102,7 +111,6 @@ export default function Layout() {
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
               >
-                <MenuItem onClick={handleClose}>TODO: idk</MenuItem>
                 <MenuItem onClick={handleSignOut} disabled={signOutLoading}>
                   Sign out
                 </MenuItem>
@@ -120,7 +128,23 @@ export default function Layout() {
           )}
         </Toolbar>
       </AppBar>
-      {user ? <Outlet /> : null}
+      {user ? (
+        <Stack direction={"column"} flex="1" minHeight={0}>
+          <Outlet />
+        </Stack>
+      ) : (
+        <Stack
+          direction={"column"}
+          gap={4}
+          sx={{
+            height: "100%",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Typography>Please sign in to continue</Typography>
+        </Stack>
+      )}
     </Stack>
   );
 }
