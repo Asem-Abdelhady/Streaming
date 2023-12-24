@@ -1,4 +1,10 @@
-import { getAuth } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+} from "firebase/auth";
+import { type User } from "firebase/auth";
 import { useSignInWithGoogle, useSignOut } from "react-firebase-hooks/auth";
 import { initializeApp } from "firebase/app";
 import {
@@ -34,18 +40,57 @@ export default function Layout() {
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const [signInWithGoogle, user, signInLoading, signInError] =
+  const [currentUser, setCurrentUser] = useState<User | false | undefined>(
+    undefined
+  );
+  const [signInWithGoogle, , signInLoading, signInError] =
     useSignInWithGoogle(auth);
   const [signOut, signOutLoading] = useSignOut(auth);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
-  useEffect(() => {
-    if (localStorage.getItem("signed")) {
-      console.log("here");
 
-      navigate("select_classes");
-    }
-  }, []);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        setCurrentUser(false);
+      }
+    });
+
+    return () => unsubscribe();
+  });
+
+  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleSignIn = () => {
+    setPersistence(auth, browserLocalPersistence).then(() => {
+      signInWithGoogle().then(() => {
+        navigate("select_classes");
+      });
+    });
+  };
+
+  const handleSignOut = () => {
+    signOut().then(() => navigate(0));
+  };
+
+  if (currentUser === undefined)
+    return (
+      <Stack
+        direction={"column"}
+        gap={4}
+        sx={{ height: "100%", alignItems: "center", justifyContent: "center" }}
+      >
+        <CircularProgress />
+      </Stack>
+    );
 
   if (signInError) {
     return (
@@ -68,28 +113,6 @@ export default function Layout() {
     );
   }
 
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleSignIn = () => {
-    signInWithGoogle().then(() => {
-      localStorage.setItem("user", String(user?.user));
-      localStorage.setItem("signed", "true");
-      navigate("select_classes");
-    });
-  };
-
-  const handleSignOut = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("signed");
-    signOut().then(() => navigate(0));
-  };
-
   return (
     <Stack sx={{ height: "100%" }}>
       <AppBar position="static" color="secondary">
@@ -97,7 +120,7 @@ export default function Layout() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             AutoAds
           </Typography>
-          {localStorage.getItem("signed") ? (
+          {currentUser ? (
             <div>
               <IconButton
                 size="large"
@@ -141,7 +164,7 @@ export default function Layout() {
           )}
         </Toolbar>
       </AppBar>
-      {localStorage.getItem("signed") ? (
+      {currentUser ? (
         <Stack direction={"column"} flex="1" minHeight={0}>
           <Outlet />
         </Stack>
