@@ -118,9 +118,13 @@ export default function SelectClasses() {
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    console.log(Object.keys(checkedItems).filter((item) => checkedItems[item]));
+    const selectedObjects = Object.keys(checkedItems).filter(
+      (item) => checkedItems[item]
+    );
+
     // Here we send api request when we have the URL
-    navigate("/stream");
+    // Pass the selectedObjects as query parameters to the /stream route
+    navigate(`/stream?selectedObjects=${selectedObjects.join(",")}`);
   };
 
   return (

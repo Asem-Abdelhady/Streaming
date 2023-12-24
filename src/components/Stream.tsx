@@ -1,154 +1,157 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Stack, styled } from "@mui/material";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  ObjectDetector,
+  FilesetResolver,
+  ObjectDetectorResult,
+} from "@mediapipe/tasks-vision";
 
-const StreamContainer = styled("div")`
-  height: 80%;
-`;
+import { useLocation } from "react-router-dom";
 
-const ObjectsContainer = styled("div")`
-  flex: 1;
-`;
+const Stream: React.FC = () => {
+  const [objectDetector, setObjectDetector] = useState<ObjectDetector | null>(
+    null
+  );
+  const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const liveViewRef = useRef<HTMLDivElement>(null);
+  const [isWebcamEnabled, setIsWebcamEnabled] = useState<boolean>(false);
 
-export default function Stream() {
-  const [dataChannelLog, setDataChannelLog] = useState<string[]>([]);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const dcRef = useRef<RTCDataChannel | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const location = useLocation();
+  const selectedObjectsParam = new URLSearchParams(location.search).get(
+    "selectedObjects"
+  );
+
+  const selectedObjects = selectedObjectsParam
+    ? selectedObjectsParam.split(",")
+    : [];
 
   useEffect(() => {
-    start();
-    return () => {
-      // Clean up on unmount
-      if (dcRef.current) {
-        dcRef.current.close();
-      }
-      if (pcRef.current) {
-        pcRef.current.close();
-      }
+    const initializeObjectDetector = async () => {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm"
+      );
+      const detector = await ObjectDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite`,
+          delegate: "GPU",
+        },
+        scoreThreshold: 0.15,
+        runningMode: "VIDEO",
+      });
+      setObjectDetector(detector);
     };
+    initializeObjectDetector();
   }, []);
 
-  const createPeerConnection = () => {
-    const config: RTCConfiguration = {
-      sdpSemantics: "unified-plan",
-    };
-
-    const pc = new RTCPeerConnection(config);
-
-    // Add track event listener for incoming media streams
-    pc.addEventListener("track", (evt) => {
-      if (evt.track.kind === "video") {
-        if (videoRef.current) {
-          videoRef.current.srcObject = evt.streams[0];
-        }
-      }
-    });
-
-    pcRef.current = pc;
-    return pc;
-  };
-
-  const negotiate = async () => {
-    if (!pcRef.current) return;
-
+  const enableCam = async () => {
+    if (!objectDetector) {
+      console.log("Wait! objectDetector not loaded yet.");
+      return;
+    }
+    const constraints = { video: true };
     try {
-      const offer = await pcRef.current.createOffer();
-      await pcRef.current.setLocalDescription(offer);
-
-      // Wait for ICE gathering to complete
-      await new Promise<void>((resolve) => {
-        if (pcRef.current?.iceGatheringState === "complete") {
-          resolve();
-        } else {
-          const checkState = () => {
-            if (pcRef.current?.iceGatheringState === "complete") {
-              pcRef.current?.removeEventListener(
-                "icegatheringstatechange",
-                checkState
-              );
-              resolve();
-            }
-          };
-          pcRef.current?.addEventListener(
-            "icegatheringstatechange",
-            checkState
-          );
-        }
-      });
-
-      const response = await fetch(
-        "https://8674-188-130-155-155.ngrok-free.app/offer",
-        {
-          body: JSON.stringify({
-            sdp: pcRef.current.localDescription?.sdp,
-            type: pcRef.current.localDescription?.type,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        }
-      );
-
-      const answer = await response.json();
-      await pcRef.current.setRemoteDescription(answer);
-    } catch (e) {
-      console.error(e);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.addEventListener("loadeddata", predictWebcam);
+      }
+    } catch (error) {
+      console.error("Error accessing the webcam", error);
     }
+    setIsWebcamEnabled(true);
   };
 
-  const start = async () => {
-    const pc = createPeerConnection();
+  const predictWebcam = async () => {
+    if (!videoRef.current || videoRef.current.readyState < 2 || !objectDetector)
+      return;
+    const startTimeMs = performance.now();
+    const detections = await objectDetector.detectForVideo(
+      videoRef.current,
+      startTimeMs
+    );
+    displayVideoDetections(detections);
+    window.requestAnimationFrame(predictWebcam);
+  };
 
-    dcRef.current = pc.createDataChannel("chat", {
-      ordered: false,
-      maxRetransmits: 0,
-    });
+  const displayVideoDetections = (result: ObjectDetectorResult) => {
+    if (!liveViewRef.current) return;
 
-    dcRef.current.onclose = () => {
-      setDataChannelLog((prevLogs) => [...prevLogs, "- close"]);
-    };
-
-    dcRef.current.onopen = () => {
-      setDataChannelLog((prevLogs) => [...prevLogs, "- open"]);
-      setInterval(() => {
-        const message = "bed|cell phone|person";
-        dcRef.current?.send(message);
-      }, 1000);
-    };
-
-    dcRef.current.onmessage = (evt) => {
-      console.log("Received message", evt.data);
-      setDataChannelLog((prevLogs) => [...prevLogs, "< " + evt.data]);
-    };
-
-    const constraints: MediaStreamConstraints = {
-      video: true,
-    };
-
-    if (constraints.video) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-        await negotiate();
-      } catch (err) {
-        console.error("Could not acquire media: " + err);
-      }
-    } else {
-      await negotiate();
+    while (liveViewRef.current.firstChild) {
+      liveViewRef.current.removeChild(liveViewRef.current.firstChild);
     }
+
+    const newDetectedObjects = result.detections.map(
+      (detection) =>
+        `${detection.categories[0].categoryName} - ${Math.round(
+          detection.categories[0].score * 100
+        )}%`
+    );
+
+    const filtered = newDetectedObjects.filter((obj) =>
+      selectedObjects.includes(obj.split(" - ")[0])
+    );
+
+    setDetectedObjects(filtered);
+
+    result.detections.forEach((detection) => {
+      const highlighter = document.createElement("div");
+      highlighter.style.position = "absolute";
+
+      const scaleX = 1.0; // Keep scale factor as 1.0
+      const scaleY = 1.0; // Keep scale factor as 1.0
+      highlighter.style.left = `${detection.boundingBox!.originX * scaleX}px`;
+      highlighter.style.top = `${detection.boundingBox!.originY * scaleY}px`;
+      highlighter.style.width = `${detection.boundingBox!.width * scaleX}px`;
+      highlighter.style.height = `${detection.boundingBox!.height * scaleY}px`;
+      highlighter.style.border = "2px solid red";
+      highlighter.style.boxSizing = "border-box";
+
+      liveViewRef.current?.appendChild(highlighter);
+    });
   };
 
   return (
-    <Stack sx={{ height: "100%" }}>
-      <StreamContainer>
-        <video ref={videoRef} autoPlay playsInline />
-      </StreamContainer>
-      <ObjectsContainer>
-        {dataChannelLog.map((log, index) => (
-          <div key={index}>{log}</div>
-        ))}
-      </ObjectsContainer>
-    </Stack>
+    <div style={{ position: "relative", width: "640px", height: "480px" }}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        style={{ width: "640px", height: "480px", position: "absolute" }}
+      />
+      {!isWebcamEnabled && (
+        <button onClick={enableCam} style={{ position: "absolute", zIndex: 1 }}>
+          Enable Webcam
+        </button>
+      )}
+      <div
+        ref={liveViewRef}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "10px",
+          left: "660px",
+          width: "200px",
+          height: "460px",
+          overflow: "auto",
+        }}
+      >
+        <h2>Detected Objects</h2>
+        <ul>
+          {detectedObjects.map((obj, index) => (
+            <li key={index}>{obj}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
-}
+};
+
+export default Stream;

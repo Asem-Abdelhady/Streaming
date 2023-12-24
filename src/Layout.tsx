@@ -13,7 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import GoogleIcon from "@mui/icons-material/Google";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AccountCircle } from "@mui/icons-material";
 import { Outlet, useNavigate } from "react-router-dom";
 
@@ -39,6 +39,13 @@ export default function Layout() {
   const [signOut, signOutLoading] = useSignOut(auth);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
+  useEffect(() => {
+    if (localStorage.getItem("signed")) {
+      console.log("here");
+
+      navigate("select_classes");
+    }
+  }, []);
 
   if (signInError) {
     return (
@@ -70,10 +77,16 @@ export default function Layout() {
   };
 
   const handleSignIn = () => {
-    signInWithGoogle().then(() => navigate("select_classes"));
+    signInWithGoogle().then(() => {
+      localStorage.setItem("user", String(user?.user));
+      localStorage.setItem("signed", "true");
+      navigate("select_classes");
+    });
   };
 
   const handleSignOut = () => {
+    localStorage.removeItem("user");
+    localStorage.removeItem("signed");
     signOut().then(() => navigate(0));
   };
 
@@ -84,7 +97,7 @@ export default function Layout() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             AutoAds
           </Typography>
-          {user ? (
+          {localStorage.getItem("signed") ? (
             <div>
               <IconButton
                 size="large"
@@ -128,7 +141,7 @@ export default function Layout() {
           )}
         </Toolbar>
       </AppBar>
-      {user ? (
+      {localStorage.getItem("signed") ? (
         <Stack direction={"column"} flex="1" minHeight={0}>
           <Outlet />
         </Stack>
