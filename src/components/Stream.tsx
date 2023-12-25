@@ -29,7 +29,7 @@ const Stream: React.FC = () => {
     undefined
   );
   const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
-  // const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
+  const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
   const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isWebcamEnabled, setIsWebcamEnabled] = useState(false);
@@ -45,7 +45,7 @@ const Stream: React.FC = () => {
     async function initializeDetectors() {
       try {
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm"
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
         );
 
         const newObjectDetector = await ObjectDetector.createFromOptions(
@@ -62,20 +62,14 @@ const Stream: React.FC = () => {
         );
         setObjectDetector(newObjectDetector);
 
-        const visionFace = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-        );
-        const newFaceDetector = await FaceDetector.createFromOptions(
-          visionFace,
-          {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-              delegate: "GPU",
-            },
-            runningMode: "VIDEO",
-          }
-        );
+        const newFaceDetector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+        });
         setFaceDetector(newFaceDetector);
 
         setIsLoading(false);
@@ -98,7 +92,7 @@ const Stream: React.FC = () => {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          startObjectDetection();
+          videoRef.current.addEventListener("loadeddata", startObjectDetection);
         }
       } catch (webcamError) {
         setError("Error accessing the webcam");
@@ -121,6 +115,7 @@ const Stream: React.FC = () => {
         videoRef.current!,
         startTimeMs
       );
+
       const newDetectedObjects = detections.detections
         .filter((detection) =>
           selectedObjects.includes(detection.categories[0].categoryName)
@@ -137,19 +132,26 @@ const Stream: React.FC = () => {
             detection.categories[0].score * 100
           )}%`;
         });
-      setDetectedObjects(newDetectedObjects);
 
+      const faceDetections = faceDetector.detectForVideo(
+        videoRef.current!,
+        startTimeMs
+      );
+      const newDetectedFaces = faceDetections.detections.map((detection) => {
+        const box: Box = {
+          x: detection.boundingBox!.originX,
+          y: detection.boundingBox!.originY,
+          width: detection.boundingBox!.width,
+          height: detection.boundingBox!.height,
+        };
+        selectedObjectsBoxes.push(box);
+        return `Face - ${Math.round(detection.categories[0].score * 100)}%`;
+      });
+
+      setDetectedFaces(newDetectedFaces);
+      setDetectedObjects(newDetectedObjects);
       setDetectionBoxes(selectedObjectsBoxes);
 
-      // const faceDetections = await faceDetector.detectForVideo(
-      //   videoRef.current!,
-      //   startTimeMs
-      // );
-      // const newDetectedFaces = faceDetections.detections.map(
-      //   (detection) =>
-      //     `Face - ${Math.round(detection.categories[0].score * 100)}%`
-      // );
-      // setDetectedFaces(newDetectedFaces);
       selectedObjectsBoxes = [];
       requestAnimationFrame(predictWebcam);
     };
@@ -227,6 +229,14 @@ const Stream: React.FC = () => {
         </Typography>
         <List>
           {detectedObjects.map((obj, index) => (
+            <ListItem key={index}>{obj}</ListItem>
+          ))}
+        </List>
+        <Typography variant="h6" gutterBottom>
+          Detected faces
+        </Typography>
+        <List>
+          {detectedFaces.map((obj, index) => (
             <ListItem key={index}>{obj}</ListItem>
           ))}
         </List>
