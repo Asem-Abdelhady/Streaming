@@ -22,10 +22,12 @@ interface Box {
 }
 
 const Stream: React.FC = () => {
-  const [objectDetector, setObjectDetector] = useState<ObjectDetector | null>(
-    null
+  const [objectDetector, setObjectDetector] = useState<
+    ObjectDetector | undefined
+  >(undefined);
+  const [faceDetector, setFaceDetector] = useState<FaceDetector | undefined>(
+    undefined
   );
-  const [faceDetector, setFaceDetector] = useState<FaceDetector | null>(null);
   const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
   // const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
   const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
@@ -60,14 +62,20 @@ const Stream: React.FC = () => {
         );
         setObjectDetector(newObjectDetector);
 
-        const newFaceDetector = await FaceDetector.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-        });
+        const visionFace = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+        );
+        const newFaceDetector = await FaceDetector.createFromOptions(
+          visionFace,
+          {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+          }
+        );
         setFaceDetector(newFaceDetector);
 
         setIsLoading(false);
@@ -82,7 +90,7 @@ const Stream: React.FC = () => {
 
   useEffect(() => {
     async function enableCam() {
-      if (!objectDetector) {
+      if (!objectDetector || !faceDetector) {
         return;
       }
       try {
@@ -106,9 +114,10 @@ const Stream: React.FC = () => {
   const startObjectDetection = async () => {
     if (!videoRef.current || !objectDetector || !faceDetector) return;
 
+    let selectedObjectsBoxes: Box[] = [];
     const predictWebcam = async () => {
       const startTimeMs = performance.now();
-      const detections = await objectDetector.detectForVideo(
+      const detections = objectDetector.detectForVideo(
         videoRef.current!,
         startTimeMs
       );
@@ -116,22 +125,21 @@ const Stream: React.FC = () => {
         .filter((detection) =>
           selectedObjects.includes(detection.categories[0].categoryName)
         )
-        .map(
-          (detection) =>
-            `${detection.categories[0].categoryName} - ${Math.round(
-              detection.categories[0].score * 100
-            )}%`
-        );
+        .map((detection) => {
+          const box: Box = {
+            x: detection.boundingBox!.originX,
+            y: detection.boundingBox!.originY,
+            width: detection.boundingBox!.width,
+            height: detection.boundingBox!.height,
+          };
+          selectedObjectsBoxes.push(box);
+          return `${detection.categories[0].categoryName} - ${Math.round(
+            detection.categories[0].score * 100
+          )}%`;
+        });
       setDetectedObjects(newDetectedObjects);
 
-      const boxes = detections.detections.map((detection) => ({
-        x: detection.boundingBox!.originX,
-        y: detection.boundingBox!.originY,
-        width: detection.boundingBox!.width,
-        height: detection.boundingBox!.height,
-      }));
-
-      setDetectionBoxes(boxes);
+      setDetectionBoxes(selectedObjectsBoxes);
 
       // const faceDetections = await faceDetector.detectForVideo(
       //   videoRef.current!,
@@ -142,7 +150,7 @@ const Stream: React.FC = () => {
       //     `Face - ${Math.round(detection.categories[0].score * 100)}%`
       // );
       // setDetectedFaces(newDetectedFaces);
-
+      selectedObjectsBoxes = [];
       requestAnimationFrame(predictWebcam);
     };
 
