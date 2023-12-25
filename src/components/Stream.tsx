@@ -27,7 +27,7 @@ const Stream: React.FC = () => {
   );
   const [faceDetector, setFaceDetector] = useState<FaceDetector | null>(null);
   const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
-  const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
+  // const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
   const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isWebcamEnabled, setIsWebcamEnabled] = useState(false);
