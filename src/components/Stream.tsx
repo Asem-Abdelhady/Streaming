@@ -1,18 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  ObjectDetector,
-  FilesetResolver,
-  FaceDetector,
-} from "@mediapipe/tasks-vision";
-import { useLocation } from "react-router-dom";
-import {
-  Button,
-  CircularProgress,
-  Typography,
-  Box,
-  List,
-  ListItem,
-} from "@mui/material";
+import { FilesetResolver, FaceDetector } from "@mediapipe/tasks-vision";
+import { Button, CircularProgress, Typography, Box } from "@mui/material";
 
 interface Box {
   x: number;
@@ -22,45 +10,35 @@ interface Box {
 }
 
 const Stream: React.FC = () => {
-  const [objectDetector, setObjectDetector] = useState<
-    ObjectDetector | undefined
-  >(undefined);
   const [faceDetector, setFaceDetector] = useState<FaceDetector | undefined>(
     undefined
   );
-  const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
-  // const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
-  const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
+  const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isWebcamEnabled, setIsWebcamEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const location = useLocation();
-  const selectedObjects =
-    new URLSearchParams(location.search).get("selectedObjects")?.split(",") ||
-    [];
-
   useEffect(() => {
     async function initializeDetectors() {
       try {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm"
-        );
+        // const vision = await FilesetResolver.forVisionTasks(
+        //   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm"
+        // );
 
-        const newObjectDetector = await ObjectDetector.createFromOptions(
-          vision,
-          {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite",
-              delegate: "GPU",
-            },
-            scoreThreshold: 0.15,
-            runningMode: "VIDEO",
-          }
-        );
-        setObjectDetector(newObjectDetector);
+        // const newObjectDetector = await ObjectDetector.createFromOptions(
+        //   vision,
+        //   {
+        //     baseOptions: {
+        //       modelAssetPath:
+        //         "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite",
+        //       delegate: "CPU",
+        //     },
+        //     scoreThreshold: 0.15,
+        //     runningMode: "VIDEO",
+        //   }
+        // );
+        // setObjectDetector(newObjectDetector);
 
         const visionFace = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
@@ -90,7 +68,7 @@ const Stream: React.FC = () => {
 
   useEffect(() => {
     async function enableCam() {
-      if (!objectDetector || !faceDetector) {
+      if (!faceDetector) {
         return;
       }
       try {
@@ -109,48 +87,59 @@ const Stream: React.FC = () => {
     if (isWebcamEnabled && !isLoading && !error) {
       enableCam();
     }
-  }, [objectDetector, faceDetector, isWebcamEnabled, isLoading, error]);
+  }, [faceDetector, isWebcamEnabled, isLoading, error]);
 
   const startObjectDetection = async () => {
-    if (!videoRef.current || !objectDetector || !faceDetector) return;
+    if (!videoRef.current || !faceDetector) return;
 
-    let selectedObjectsBoxes: Box[] = [];
+    // let selectedObjectsBoxes: Box[] = [];
     const predictWebcam = async () => {
-      const startTimeMs = performance.now();
-      const detections = objectDetector.detectForVideo(
-        videoRef.current!,
-        startTimeMs
-      );
-      const newDetectedObjects = detections.detections
-        .filter((detection) =>
-          selectedObjects.includes(detection.categories[0].categoryName)
-        )
-        .map((detection) => {
-          const box: Box = {
-            x: detection.boundingBox!.originX,
-            y: detection.boundingBox!.originY,
-            width: detection.boundingBox!.width,
-            height: detection.boundingBox!.height,
-          };
-          selectedObjectsBoxes.push(box);
-          return `${detection.categories[0].categoryName} - ${Math.round(
-            detection.categories[0].score * 100
-          )}%`;
-        });
-      setDetectedObjects(newDetectedObjects);
-
-      setDetectionBoxes(selectedObjectsBoxes);
-
-      // const faceDetections = await faceDetector.detectForVideo(
+      // const startTimeMs = performance.now();
+      // const detections = objectDetector.detectForVideo(
       //   videoRef.current!,
       //   startTimeMs
       // );
-      // const newDetectedFaces = faceDetections.detections.map(
-      //   (detection) =>
-      //     `Face - ${Math.round(detection.categories[0].score * 100)}%`
+      // const newDetectedObjects = detections.detections
+      //   .filter((detection) =>
+      //     selectedObjects.includes(detection.categories[0].categoryName)
+      //   )
+      //   .map((detection) => {
+      //     const box: Box = {
+      //       x: detection.boundingBox!.originX,
+      //       y: detection.boundingBox!.originY,
+      //       width: detection.boundingBox!.width,
+      //       height: detection.boundingBox!.height,
+      //     };
+      //     selectedObjectsBoxes.push(box);
+      //     return `${detection.categories[0].categoryName} - ${Math.round(
+      //       detection.categories[0].score * 100
+      //     )}%`;
+      //   });
+      // setDetectedObjects(newDetectedObjects);
+
+      // setDetectionBoxes(selectedObjectsBoxes);
+      let lastVideoTime = -1;
+      const startTimeMs = performance.now();
+      if (videoRef.current!.currentTime !== lastVideoTime) {
+        lastVideoTime = videoRef.current!.currentTime;
+        const faceDetections = faceDetector.detectForVideo(
+          videoRef.current!,
+          startTimeMs
+        );
+        const newDetectedFaces = faceDetections.detections.map(
+          (detection) =>
+            `Face - ${Math.round(detection.categories[0].score * 100)}%`
+        );
+        setDetectedFaces(newDetectedFaces);
+        console.log("Here: ", faceDetections);
+        console.log("Detected faces: ", detectedFaces);
+      }
+      // const faceDetections = faceDetector.detectForVideo(
+      //   videoRef.current!,
+      //   startTimeMs
       // );
-      // setDetectedFaces(newDetectedFaces);
-      selectedObjectsBoxes = [];
+
+      // selectedObjectsBoxes = [];
       requestAnimationFrame(predictWebcam);
     };
 
@@ -194,20 +183,7 @@ const Stream: React.FC = () => {
           Enable Webcam
         </Button>
       )}
-      {detectionBoxes.map((box, index) => (
-        <Box
-          key={index}
-          sx={{
-            position: "absolute",
-            left: box.x,
-            top: box.y,
-            width: box.width,
-            height: box.height,
-            border: "2px solid red",
-            boxSizing: "border-box",
-          }}
-        />
-      ))}
+
       <Box
         sx={{
           position: "absolute",
@@ -225,11 +201,6 @@ const Stream: React.FC = () => {
         <Typography variant="h6" gutterBottom>
           Detected Objects
         </Typography>
-        <List>
-          {detectedObjects.map((obj, index) => (
-            <ListItem key={index}>{obj}</ListItem>
-          ))}
-        </List>
       </Box>
     </Box>
   );
