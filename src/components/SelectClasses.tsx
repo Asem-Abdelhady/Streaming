@@ -8,7 +8,6 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-// TODO: Fetch these from BE
 const classes = [
   "person",
   "bicycle",
@@ -99,7 +98,6 @@ interface CheckedItems {
 export default function SelectClasses() {
   const [checkedItems, setCheckedItems] = useState<CheckedItems>({});
   const navigate = useNavigate();
-
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newCheckedItems: CheckedItems = classes.reduce(
       (acc: CheckedItems, item) => {
@@ -122,8 +120,6 @@ export default function SelectClasses() {
       (item) => checkedItems[item]
     );
 
-    // Here we send api request when we have the URL
-    // Pass the selectedObjects as query parameters to the /stream route
     navigate(`/stream?selectedObjects=${selectedObjects.join(",")}`);
   };
 

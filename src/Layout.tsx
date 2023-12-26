@@ -71,9 +71,7 @@ export default function Layout() {
 
   const handleSignIn = () => {
     setPersistence(auth, browserLocalPersistence).then(() => {
-      signInWithGoogle().then(() => {
-        navigate("select_classes");
-      });
+      signInWithGoogle();
     });
   };
 

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   ObjectDetector,
   FilesetResolver,
   FaceDetector,
 } from "@mediapipe/tasks-vision";
-import { useLocation } from "react-router-dom";
 import {
   Button,
   CircularProgress,
@@ -12,14 +11,23 @@ import {
   Box,
   List,
   ListItem,
+  styled,
+  Stack,
 } from "@mui/material";
-
 interface Box {
   x: number;
   y: number;
   width: number;
   height: number;
 }
+
+const VideoContainer = styled(Box)({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  position: "relative",
+});
 
 const Stream: React.FC = () => {
   const [objectDetector, setObjectDetector] = useState<
@@ -35,11 +43,60 @@ const Stream: React.FC = () => {
   const [isWebcamEnabled, setIsWebcamEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const location = useLocation();
   const selectedObjects =
     new URLSearchParams(location.search).get("selectedObjects")?.split(",") ||
     [];
+
+  const predictWebcam = useCallback(async () => {
+    if (!videoRef.current || !objectDetector || !faceDetector) return;
+    let selectedObjectsBoxes: Box[] = [];
+    const startTimeMs = performance.now();
+    const detections = objectDetector.detectForVideo(
+      videoRef.current!,
+      startTimeMs
+    );
+    console.log("KFKL:JSD:LF", selectedObjects);
+    const newDetectedObjects = detections.detections
+      .filter((detection) =>
+        selectedObjects.includes(detection.categories[0].categoryName)
+      )
+      .map((detection) => {
+        const box: Box = {
+          x: detection.boundingBox!.originX,
+          y: detection.boundingBox!.originY,
+          width: detection.boundingBox!.width,
+          height: detection.boundingBox!.height,
+        };
+        selectedObjectsBoxes.push(box);
+        return `${detection.categories[0].categoryName} - ${Math.round(
+          detection.categories[0].score * 100
+        )}%`;
+      });
+
+    const faceDetections = faceDetector.detectForVideo(
+      videoRef.current!,
+      startTimeMs
+    );
+    const newDetectedFaces = faceDetections.detections.map((detection) => {
+      const box: Box = {
+        x: detection.boundingBox!.originX,
+        y: detection.boundingBox!.originY,
+        width: detection.boundingBox!.width,
+        height: detection.boundingBox!.height,
+      };
+      selectedObjectsBoxes.push(box);
+      return `Face - ${Math.round(detection.categories[0].score * 100)}%`;
+    });
+
+    setDetectedFaces(newDetectedFaces);
+    setDetectedObjects(newDetectedObjects);
+    setDetectionBoxes(selectedObjectsBoxes);
+
+    selectedObjectsBoxes = [];
+    requestAnimationFrame(predictWebcam);
+  }, [faceDetector, objectDetector]);
 
   useEffect(() => {
     async function initializeDetectors() {
@@ -56,7 +113,7 @@ const Stream: React.FC = () => {
                 "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite",
               delegate: "GPU",
             },
-            scoreThreshold: 0.15,
+            scoreThreshold: 0.6,
             runningMode: "VIDEO",
           }
         );
@@ -92,7 +149,7 @@ const Stream: React.FC = () => {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.addEventListener("loadeddata", startObjectDetection);
+          videoRef.current.addEventListener("loadeddata", predictWebcam);
         }
       } catch (webcamError) {
         setError("Error accessing the webcam");
@@ -103,145 +160,78 @@ const Stream: React.FC = () => {
     if (isWebcamEnabled && !isLoading && !error) {
       enableCam();
     }
-  }, [objectDetector, faceDetector, isWebcamEnabled, isLoading, error]);
+  }, [
+    objectDetector,
+    faceDetector,
+    isWebcamEnabled,
+    isLoading,
+    error,
+    predictWebcam,
+  ]);
 
-  const startObjectDetection = async () => {
-    if (!videoRef.current || !objectDetector || !faceDetector) return;
-
-    let selectedObjectsBoxes: Box[] = [];
-    const predictWebcam = async () => {
-      const startTimeMs = performance.now();
-      const detections = objectDetector.detectForVideo(
-        videoRef.current!,
-        startTimeMs
-      );
-
-      const newDetectedObjects = detections.detections
-        .filter((detection) =>
-          selectedObjects.includes(detection.categories[0].categoryName)
-        )
-        .map((detection) => {
-          const box: Box = {
-            x: detection.boundingBox!.originX,
-            y: detection.boundingBox!.originY,
-            width: detection.boundingBox!.width,
-            height: detection.boundingBox!.height,
-          };
-          selectedObjectsBoxes.push(box);
-          return `${detection.categories[0].categoryName} - ${Math.round(
-            detection.categories[0].score * 100
-          )}%`;
+  useEffect(() => {
+    const drawDetectionBoxes = (boxes: Box[]) => {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+        boxes.forEach((box) => {
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
         });
-
-      const faceDetections = faceDetector.detectForVideo(
-        videoRef.current!,
-        startTimeMs
-      );
-      const newDetectedFaces = faceDetections.detections.map((detection) => {
-        const box: Box = {
-          x: detection.boundingBox!.originX,
-          y: detection.boundingBox!.originY,
-          width: detection.boundingBox!.width,
-          height: detection.boundingBox!.height,
-        };
-        selectedObjectsBoxes.push(box);
-        return `Face - ${Math.round(detection.categories[0].score * 100)}%`;
-      });
-
-      setDetectedFaces(newDetectedFaces);
-      setDetectedObjects(newDetectedObjects);
-      setDetectionBoxes(selectedObjectsBoxes);
-
-      selectedObjectsBoxes = [];
-      requestAnimationFrame(predictWebcam);
+      }
     };
 
-    predictWebcam();
-  };
+    drawDetectionBoxes(detectionBoxes);
+  }, [detectionBoxes]);
 
   return (
-    <Box sx={{ position: "relative", width: "640px", height: "480px" }}>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        style={{ width: "640px", height: "480px", position: "absolute" }}
-      />
-      {isLoading && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          <CircularProgress />
-        </Box>
-      )}
-      {error && (
-        <Typography
-          color="error"
-          sx={{ position: "absolute", top: "10px", left: "10px" }}
-        >
-          Error: {error}
-        </Typography>
-      )}
-      {!isWebcamEnabled && !isLoading && (
-        <Button
-          variant="contained"
-          onClick={() => setIsWebcamEnabled(true)}
-          sx={{ position: "absolute", zIndex: 1, top: "10px", left: "10px" }}
-        >
-          Enable Webcam
-        </Button>
-      )}
-      {detectionBoxes.map((box, index) => (
-        <Box
-          key={index}
-          sx={{
-            position: "absolute",
-            left: box.x,
-            top: box.y,
-            width: box.width,
-            height: box.height,
-            border: "2px solid red",
-            boxSizing: "border-box",
-          }}
+    <Stack direction="row" gap="16px" padding="24px">
+      <VideoContainer>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          style={{ width: "640px", height: "480px" }}
         />
-      ))}
-      <Box
-        sx={{
-          position: "absolute",
-          top: "10px",
-          left: "660px",
-          width: "200px",
-          height: "460px",
-          overflow: "auto",
-          backgroundColor: "background.paper",
-          padding: "10px",
-          borderRadius: "4px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-        }}
-      >
-        <Typography variant="h6" gutterBottom>
-          Detected Objects
-        </Typography>
-        <List>
-          {detectedObjects.map((obj, index) => (
-            <ListItem key={index}>{obj}</ListItem>
-          ))}
-        </List>
-        <Typography variant="h6" gutterBottom>
-          Detected faces
-        </Typography>
-        <List>
-          {detectedFaces.map((obj, index) => (
-            <ListItem key={index}>{obj}</ListItem>
-          ))}
-        </List>
-      </Box>
-    </Box>
+        <canvas
+          ref={canvasRef}
+          width="640"
+          height="480"
+          style={{ position: "absolute" }}
+        />
+        {isLoading && <CircularProgress />}
+        {error && <Typography color="error">Error: {error}</Typography>}
+        {!isWebcamEnabled && !isLoading && (
+          <Button variant="contained" onClick={() => setIsWebcamEnabled(true)}>
+            Enable Webcam
+          </Button>
+        )}
+      </VideoContainer>
+      <Stack direction="row" gap="12px" justifyContent="space-between" flex={1}>
+        <Stack flex={1}>
+          <Typography variant="h6" gutterBottom>
+            Detected Objects
+          </Typography>
+          <List>
+            {detectedObjects.map((obj, index) => (
+              <ListItem key={index}>{obj}</ListItem>
+            ))}
+          </List>
+        </Stack>
+        <Stack flex={1}>
+          <Typography variant="h6" gutterBottom>
+            Detected Faces
+          </Typography>
+          <List>
+            {detectedFaces.map((obj, index) => (
+              <ListItem key={index}>{obj}</ListItem>
+            ))}
+          </List>
+        </Stack>
+      </Stack>
+    </Stack>
   );
 };
 
