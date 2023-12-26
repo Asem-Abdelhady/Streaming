@@ -11,11 +11,13 @@ import Stream from "./components/Stream.tsx";
 import "./main.css";
 import { ThemeProvider } from "@mui/material";
 import theme from "./theme/theme.tsx";
+import SelectClasses from "./components/SelectClasses.tsx";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route path="*" element={<Layout />}>
-      <Route path="*" element={<Stream />} />
+    <Route element={<Layout />}>
+      <Route path="*" element={<SelectClasses />} />
+      <Route path="/stream" element={<Stream />} />
     </Route>
   )
 );

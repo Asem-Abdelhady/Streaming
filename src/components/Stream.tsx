@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   ObjectDetector,
   FilesetResolver,
@@ -14,8 +14,6 @@ import {
   styled,
   Stack,
 } from "@mui/material";
-import SelectClasses from "./SelectClasses";
-
 interface Box {
   x: number;
   y: number;
@@ -47,7 +45,58 @@ const Stream: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const selectedObjects = ["person", "toothbrush"];
+  const selectedObjects =
+    new URLSearchParams(location.search).get("selectedObjects")?.split(",") ||
+    [];
+
+  const predictWebcam = useCallback(async () => {
+    if (!videoRef.current || !objectDetector || !faceDetector) return;
+    let selectedObjectsBoxes: Box[] = [];
+    const startTimeMs = performance.now();
+    const detections = objectDetector.detectForVideo(
+      videoRef.current!,
+      startTimeMs
+    );
+    console.log("KFKL:JSD:LF", selectedObjects);
+    const newDetectedObjects = detections.detections
+      .filter((detection) =>
+        selectedObjects.includes(detection.categories[0].categoryName)
+      )
+      .map((detection) => {
+        const box: Box = {
+          x: detection.boundingBox!.originX,
+          y: detection.boundingBox!.originY,
+          width: detection.boundingBox!.width,
+          height: detection.boundingBox!.height,
+        };
+        selectedObjectsBoxes.push(box);
+        return `${detection.categories[0].categoryName} - ${Math.round(
+          detection.categories[0].score * 100
+        )}%`;
+      });
+
+    const faceDetections = faceDetector.detectForVideo(
+      videoRef.current!,
+      startTimeMs
+    );
+    const newDetectedFaces = faceDetections.detections.map((detection) => {
+      const box: Box = {
+        x: detection.boundingBox!.originX,
+        y: detection.boundingBox!.originY,
+        width: detection.boundingBox!.width,
+        height: detection.boundingBox!.height,
+      };
+      selectedObjectsBoxes.push(box);
+      return `Face - ${Math.round(detection.categories[0].score * 100)}%`;
+    });
+
+    setDetectedFaces(newDetectedFaces);
+    setDetectedObjects(newDetectedObjects);
+    setDetectionBoxes(selectedObjectsBoxes);
+
+    selectedObjectsBoxes = [];
+    requestAnimationFrame(predictWebcam);
+  }, [faceDetector, objectDetector]);
 
   useEffect(() => {
     async function initializeDetectors() {
@@ -64,7 +113,7 @@ const Stream: React.FC = () => {
                 "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite",
               delegate: "GPU",
             },
-            scoreThreshold: 0.15,
+            scoreThreshold: 0.6,
             runningMode: "VIDEO",
           }
         );
@@ -100,7 +149,7 @@ const Stream: React.FC = () => {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.addEventListener("loadeddata", startObjectDetection);
+          videoRef.current.addEventListener("loadeddata", predictWebcam);
         }
       } catch (webcamError) {
         setError("Error accessing the webcam");
@@ -111,61 +160,14 @@ const Stream: React.FC = () => {
     if (isWebcamEnabled && !isLoading && !error) {
       enableCam();
     }
-  }, [objectDetector, faceDetector, isWebcamEnabled, isLoading, error]);
-
-  const startObjectDetection = async () => {
-    if (!videoRef.current || !objectDetector || !faceDetector) return;
-
-    let selectedObjectsBoxes: Box[] = [];
-    const predictWebcam = async () => {
-      const startTimeMs = performance.now();
-      const detections = objectDetector.detectForVideo(
-        videoRef.current!,
-        startTimeMs
-      );
-
-      const newDetectedObjects = detections.detections
-        .filter((detection) =>
-          selectedObjects.includes(detection.categories[0].categoryName)
-        )
-        .map((detection) => {
-          const box: Box = {
-            x: detection.boundingBox!.originX,
-            y: detection.boundingBox!.originY,
-            width: detection.boundingBox!.width,
-            height: detection.boundingBox!.height,
-          };
-          selectedObjectsBoxes.push(box);
-          return `${detection.categories[0].categoryName} - ${Math.round(
-            detection.categories[0].score * 100
-          )}%`;
-        });
-
-      const faceDetections = faceDetector.detectForVideo(
-        videoRef.current!,
-        startTimeMs
-      );
-      const newDetectedFaces = faceDetections.detections.map((detection) => {
-        const box: Box = {
-          x: detection.boundingBox!.originX,
-          y: detection.boundingBox!.originY,
-          width: detection.boundingBox!.width,
-          height: detection.boundingBox!.height,
-        };
-        selectedObjectsBoxes.push(box);
-        return `Face - ${Math.round(detection.categories[0].score * 100)}%`;
-      });
-
-      setDetectedFaces(newDetectedFaces);
-      setDetectedObjects(newDetectedObjects);
-      setDetectionBoxes(selectedObjectsBoxes);
-
-      selectedObjectsBoxes = [];
-      requestAnimationFrame(predictWebcam);
-    };
-
-    predictWebcam();
-  };
+  }, [
+    objectDetector,
+    faceDetector,
+    isWebcamEnabled,
+    isLoading,
+    error,
+    predictWebcam,
+  ]);
 
   useEffect(() => {
     const drawDetectionBoxes = (boxes: Box[]) => {
@@ -185,61 +187,50 @@ const Stream: React.FC = () => {
   }, [detectionBoxes]);
 
   return (
-    <Stack padding="24px">
-      <Stack direction="row" gap="16px">
-        <VideoContainer>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            style={{ width: "640px", height: "480px" }}
-          />
-          <canvas
-            ref={canvasRef}
-            width="640"
-            height="480"
-            style={{ position: "absolute" }}
-          />
-          {isLoading && <CircularProgress />}
-          {error && <Typography color="error">Error: {error}</Typography>}
-          {!isWebcamEnabled && !isLoading && (
-            <Button
-              variant="contained"
-              onClick={() => setIsWebcamEnabled(true)}
-            >
-              Enable Webcam
-            </Button>
-          )}
-        </VideoContainer>
-        <Stack
-          direction="row"
-          gap="12px"
-          justifyContent="space-between"
-          flex={1}
-        >
-          <Stack flex={1}>
-            <Typography variant="h6" gutterBottom>
-              Detected Objects
-            </Typography>
-            <List>
-              {detectedObjects.map((obj, index) => (
-                <ListItem key={index}>{obj}</ListItem>
-              ))}
-            </List>
-          </Stack>
-          <Stack flex={1}>
-            <Typography variant="h6" gutterBottom>
-              Detected Faces
-            </Typography>
-            <List>
-              {detectedFaces.map((obj, index) => (
-                <ListItem key={index}>{obj}</ListItem>
-              ))}
-            </List>
-          </Stack>
+    <Stack direction="row" gap="16px" padding="24px">
+      <VideoContainer>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          style={{ width: "640px", height: "480px" }}
+        />
+        <canvas
+          ref={canvasRef}
+          width="640"
+          height="480"
+          style={{ position: "absolute" }}
+        />
+        {isLoading && <CircularProgress />}
+        {error && <Typography color="error">Error: {error}</Typography>}
+        {!isWebcamEnabled && !isLoading && (
+          <Button variant="contained" onClick={() => setIsWebcamEnabled(true)}>
+            Enable Webcam
+          </Button>
+        )}
+      </VideoContainer>
+      <Stack direction="row" gap="12px" justifyContent="space-between" flex={1}>
+        <Stack flex={1}>
+          <Typography variant="h6" gutterBottom>
+            Detected Objects
+          </Typography>
+          <List>
+            {detectedObjects.map((obj, index) => (
+              <ListItem key={index}>{obj}</ListItem>
+            ))}
+          </List>
+        </Stack>
+        <Stack flex={1}>
+          <Typography variant="h6" gutterBottom>
+            Detected Faces
+          </Typography>
+          <List>
+            {detectedFaces.map((obj, index) => (
+              <ListItem key={index}>{obj}</ListItem>
+            ))}
+          </List>
         </Stack>
       </Stack>
-      {/* <SelectClasses onSelectedObjectsChange={} /> */}
     </Stack>
   );
 };

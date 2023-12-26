@@ -6,6 +6,7 @@ import {
   styled,
 } from "@mui/material";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const classes = [
   "person",
@@ -94,13 +95,9 @@ interface CheckedItems {
   [key: string]: boolean;
 }
 
-type Props = {
-  onSelectedObjectsChange: (selectedItems: string[]) => void;
-};
-
-export default function SelectClasses({ onSelectedObjectsChange }: Props) {
+export default function SelectClasses() {
   const [checkedItems, setCheckedItems] = useState<CheckedItems>({});
-
+  const navigate = useNavigate();
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newCheckedItems: CheckedItems = classes.reduce(
       (acc: CheckedItems, item) => {
@@ -123,7 +120,7 @@ export default function SelectClasses({ onSelectedObjectsChange }: Props) {
       (item) => checkedItems[item]
     );
 
-    onSelectedObjectsChange(selectedObjects);
+    navigate(`/stream?selectedObjects=${selectedObjects.join(",")}`);
   };
 
   return (
