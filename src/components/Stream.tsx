@@ -4,7 +4,6 @@ import {
   FilesetResolver,
   FaceDetector,
 } from "@mediapipe/tasks-vision";
-import { useLocation } from "react-router-dom";
 import {
   Button,
   CircularProgress,
@@ -12,7 +11,10 @@ import {
   Box,
   List,
   ListItem,
+  styled,
+  Stack,
 } from "@mui/material";
+import SelectClasses from "./SelectClasses";
 
 interface Box {
   x: number;
@@ -20,6 +22,14 @@ interface Box {
   width: number;
   height: number;
 }
+
+const VideoContainer = styled(Box)({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  position: "relative",
+});
 
 const Stream: React.FC = () => {
   const [objectDetector, setObjectDetector] = useState<
@@ -35,11 +45,9 @@ const Stream: React.FC = () => {
   const [isWebcamEnabled, setIsWebcamEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const location = useLocation();
-  const selectedObjects =
-    new URLSearchParams(location.search).get("selectedObjects")?.split(",") ||
-    [];
+  const selectedObjects = ["person", "toothbrush"];
 
   useEffect(() => {
     async function initializeDetectors() {
@@ -159,89 +167,80 @@ const Stream: React.FC = () => {
     predictWebcam();
   };
 
+  useEffect(() => {
+    const drawDetectionBoxes = (boxes: Box[]) => {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+        boxes.forEach((box) => {
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+        });
+      }
+    };
+
+    drawDetectionBoxes(detectionBoxes);
+  }, [detectionBoxes]);
+
   return (
-    <Box sx={{ position: "relative", width: "640px", height: "480px" }}>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        style={{ width: "640px", height: "480px", position: "absolute" }}
-      />
-      {isLoading && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-          }}
+    <Stack padding="24px">
+      <Stack direction="row" gap="16px">
+        <VideoContainer>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            style={{ width: "640px", height: "480px" }}
+          />
+          <canvas
+            ref={canvasRef}
+            width="640"
+            height="480"
+            style={{ position: "absolute" }}
+          />
+          {isLoading && <CircularProgress />}
+          {error && <Typography color="error">Error: {error}</Typography>}
+          {!isWebcamEnabled && !isLoading && (
+            <Button
+              variant="contained"
+              onClick={() => setIsWebcamEnabled(true)}
+            >
+              Enable Webcam
+            </Button>
+          )}
+        </VideoContainer>
+        <Stack
+          direction="row"
+          gap="12px"
+          justifyContent="space-between"
+          flex={1}
         >
-          <CircularProgress />
-        </Box>
-      )}
-      {error && (
-        <Typography
-          color="error"
-          sx={{ position: "absolute", top: "10px", left: "10px" }}
-        >
-          Error: {error}
-        </Typography>
-      )}
-      {!isWebcamEnabled && !isLoading && (
-        <Button
-          variant="contained"
-          onClick={() => setIsWebcamEnabled(true)}
-          sx={{ position: "absolute", zIndex: 1, top: "10px", left: "10px" }}
-        >
-          Enable Webcam
-        </Button>
-      )}
-      {detectionBoxes.map((box, index) => (
-        <Box
-          key={index}
-          sx={{
-            position: "absolute",
-            left: box.x,
-            top: box.y,
-            width: box.width,
-            height: box.height,
-            border: "2px solid red",
-            boxSizing: "border-box",
-          }}
-        />
-      ))}
-      <Box
-        sx={{
-          position: "absolute",
-          top: "10px",
-          left: "660px",
-          width: "200px",
-          height: "460px",
-          overflow: "auto",
-          backgroundColor: "background.paper",
-          padding: "10px",
-          borderRadius: "4px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-        }}
-      >
-        <Typography variant="h6" gutterBottom>
-          Detected Objects
-        </Typography>
-        <List>
-          {detectedObjects.map((obj, index) => (
-            <ListItem key={index}>{obj}</ListItem>
-          ))}
-        </List>
-        <Typography variant="h6" gutterBottom>
-          Detected faces
-        </Typography>
-        <List>
-          {detectedFaces.map((obj, index) => (
-            <ListItem key={index}>{obj}</ListItem>
-          ))}
-        </List>
-      </Box>
-    </Box>
+          <Stack flex={1}>
+            <Typography variant="h6" gutterBottom>
+              Detected Objects
+            </Typography>
+            <List>
+              {detectedObjects.map((obj, index) => (
+                <ListItem key={index}>{obj}</ListItem>
+              ))}
+            </List>
+          </Stack>
+          <Stack flex={1}>
+            <Typography variant="h6" gutterBottom>
+              Detected Faces
+            </Typography>
+            <List>
+              {detectedFaces.map((obj, index) => (
+                <ListItem key={index}>{obj}</ListItem>
+              ))}
+            </List>
+          </Stack>
+        </Stack>
+      </Stack>
+      {/* <SelectClasses onSelectedObjectsChange={} /> */}
+    </Stack>
   );
 };
 

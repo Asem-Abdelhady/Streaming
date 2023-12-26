@@ -6,9 +6,7 @@ import {
   styled,
 } from "@mui/material";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
-// TODO: Fetch these from BE
 const classes = [
   "person",
   "bicycle",
@@ -96,9 +94,12 @@ interface CheckedItems {
   [key: string]: boolean;
 }
 
-export default function SelectClasses() {
+type Props = {
+  onSelectedObjectsChange: (selectedItems: string[]) => void;
+};
+
+export default function SelectClasses({ onSelectedObjectsChange }: Props) {
   const [checkedItems, setCheckedItems] = useState<CheckedItems>({});
-  const navigate = useNavigate();
 
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newCheckedItems: CheckedItems = classes.reduce(
@@ -122,9 +123,7 @@ export default function SelectClasses() {
       (item) => checkedItems[item]
     );
 
-    // Here we send api request when we have the URL
-    // Pass the selectedObjects as query parameters to the /stream route
-    navigate(`/stream?selectedObjects=${selectedObjects.join(",")}`);
+    onSelectedObjectsChange(selectedObjects);
   };
 
   return (
